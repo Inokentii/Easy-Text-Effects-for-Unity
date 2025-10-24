@@ -12,18 +12,18 @@ namespace EasyTextEffects.Effects
         public float endScale = 1;
 
         [Space(10)]
-        [Header("Non-Uniform")]
-        [Tooltip("Enable per-axis animation curves for squash and stretch.")]
-        public bool useAxisCurves;
+        [Header("Per-Axis Easing")]
+        [Tooltip("Enable per-axis easing curves for squash/stretch effects.")]
+        public bool useAxisEasing;
 
-        [Tooltip("X-axis scale curve (evaluated after easing).")]
-        public AnimationCurve scaleXCurve = AnimationCurve.Linear(0f, 1f, 1f, 1f);
+        [Tooltip("Override easing curve for X axis (defaults to main easing curve).")]
+        public AnimationCurve axisEasingX = AnimationCurve.Linear(0f, 0f, 1f, 1f);
 
-        [Tooltip("Y-axis scale curve (evaluated after easing).")]
-        public AnimationCurve scaleYCurve = AnimationCurve.Linear(0f, 1f, 1f, 1f);
+        [Tooltip("Override easing curve for Y axis (defaults to main easing curve).")]
+        public AnimationCurve axisEasingY = AnimationCurve.Linear(0f, 0f, 1f, 1f);
 
-        [Tooltip("Z-axis scale curve (evaluated after easing).")]
-        public AnimationCurve scaleZCurve = AnimationCurve.Linear(0f, 1f, 1f, 1f);
+        [Tooltip("Override easing curve for Z axis (defaults to main easing curve).")]
+        public AnimationCurve axisEasingZ = AnimationCurve.Linear(0f, 0f, 1f, 1f);
 
         public override void ApplyEffect(TMP_TextInfo _textInfo, int _charIndex, int _startVertex = 0, int _endVertex = 3)
         {
@@ -34,28 +34,9 @@ namespace EasyTextEffects.Effects
             var verts = _textInfo.meshInfo[materialIndex].vertices;
             Vector3 center = CharCenter(charInfo, verts);
 
-            float uniformScale = Interpolate(startScale, endScale, _charIndex);
-            Vector3 finalScale;
-
-            if (useAxisCurves)
-            {
-                float progress = GetProgress01(_charIndex);
-                float eased = easingCurve.Evaluate(progress);
-                if (clampBetween0And1)
-                    eased = Mathf.Clamp01(eased);
-
-                float sx = scaleXCurve != null ? scaleXCurve.Evaluate(eased) : 1f;
-                float sy = scaleYCurve != null ? scaleYCurve.Evaluate(eased) : 1f;
-                float sz = scaleZCurve != null ? scaleZCurve.Evaluate(eased) : 1f;
-
-                Vector3 axisScale = new Vector3(sx, sy, sz);
-                Vector3 uniformVec = new Vector3(uniformScale, uniformScale, uniformScale);
-                finalScale = Vector3.Scale(axisScale, uniformVec);
-            }
-            else
-            {
-                finalScale = new Vector3(uniformScale, uniformScale, uniformScale);
-            }
+            Vector3 finalScale = useAxisEasing
+                ? EvaluateAxisScale(_charIndex)
+                : Vector3.one * Interpolate(startScale, endScale, _charIndex);
 
             for (var v = _startVertex; v <= _endVertex; v++)
             {
@@ -64,6 +45,30 @@ namespace EasyTextEffects.Effects
                 fromCenter = Vector3.Scale(fromCenter, finalScale);
                 verts[vertexIndex] = center + fromCenter;
             }
+        }
+
+        private Vector3 EvaluateAxisScale(int charIndex)
+        {
+            float duration = Mathf.Max(0.00001f, durationPerChar);
+            float time = GetTimeForChar(charIndex);
+            float normalizedTime = time / duration;
+
+            float tx = axisEasingX != null ? axisEasingX.Evaluate(normalizedTime) : easingCurve.Evaluate(normalizedTime);
+            float ty = axisEasingY != null ? axisEasingY.Evaluate(normalizedTime) : easingCurve.Evaluate(normalizedTime);
+            float tz = axisEasingZ != null ? axisEasingZ.Evaluate(normalizedTime) : easingCurve.Evaluate(normalizedTime);
+
+            if (clampBetween0And1)
+            {
+                tx = Mathf.Clamp01(tx);
+                ty = Mathf.Clamp01(ty);
+                tz = Mathf.Clamp01(tz);
+            }
+
+            float sx = Mathf.Lerp(startScale, endScale, tx);
+            float sy = Mathf.Lerp(startScale, endScale, ty);
+            float sz = Mathf.Lerp(startScale, endScale, tz);
+
+            return new Vector3(sx, sy, sz);
         }
     }
 }
