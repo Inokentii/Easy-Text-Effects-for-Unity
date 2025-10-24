@@ -12,18 +12,25 @@ namespace EasyTextEffects.Effects
         public float endScale = 1;
 
         [Space(10)]
-        [Header("Per-Axis Easing")]
         [Tooltip("Enable per-axis easing curves for squash/stretch effects.")]
         public bool useAxisEasing;
 
-        [Tooltip("Override easing curve for X axis (defaults to main easing curve).")]
-        public AnimationCurve axisEasingX = AnimationCurve.Linear(0f, 0f, 1f, 1f);
+        [Tooltip("Override easing curve for X axis (defaults to main easing curve)."), SerializeField]
+        private AnimationCurve axisEasingX = AnimationCurve.Linear(0f, 0f, 1f, 1f);
 
-        [Tooltip("Override easing curve for Y axis (defaults to main easing curve).")]
-        public AnimationCurve axisEasingY = AnimationCurve.Linear(0f, 0f, 1f, 1f);
+        [Tooltip("Override easing curve for Y axis (defaults to main easing curve)."), SerializeField]
+        private AnimationCurve axisEasingY = AnimationCurve.Linear(0f, 0f, 1f, 1f);
 
-        [Tooltip("Override easing curve for Z axis (defaults to main easing curve).")]
-        public AnimationCurve axisEasingZ = AnimationCurve.Linear(0f, 0f, 1f, 1f);
+        [Tooltip("Override easing curve for Z axis (defaults to main easing curve)."), SerializeField]
+        private AnimationCurve axisEasingZ = AnimationCurve.Linear(0f, 0f, 1f, 1f);
+
+        public override void StartEffect(TextEffectEntry entry)
+        {
+            base.StartEffect(entry);
+            ConfigureAxisWrap(axisEasingX);
+            ConfigureAxisWrap(axisEasingY);
+            ConfigureAxisWrap(axisEasingZ);
+        }
 
         public override void ApplyEffect(TMP_TextInfo _textInfo, int _charIndex, int _startVertex = 0, int _endVertex = 3)
         {
@@ -49,26 +56,63 @@ namespace EasyTextEffects.Effects
 
         private Vector3 EvaluateAxisScale(int charIndex)
         {
-            float duration = Mathf.Max(0.00001f, durationPerChar);
-            float time = GetTimeForChar(charIndex);
-            float normalizedTime = time / duration;
-
-            float tx = axisEasingX != null ? axisEasingX.Evaluate(normalizedTime) : easingCurve.Evaluate(normalizedTime);
-            float ty = axisEasingY != null ? axisEasingY.Evaluate(normalizedTime) : easingCurve.Evaluate(normalizedTime);
-            float tz = axisEasingZ != null ? axisEasingZ.Evaluate(normalizedTime) : easingCurve.Evaluate(normalizedTime);
-
-            if (clampBetween0And1)
-            {
-                tx = Mathf.Clamp01(tx);
-                ty = Mathf.Clamp01(ty);
-                tz = Mathf.Clamp01(tz);
-            }
+            float normalizedTime = GetNormalizedTime(charIndex);
+            float tx = EvaluateAxisProgress(axisEasingX, normalizedTime);
+            float ty = EvaluateAxisProgress(axisEasingY, normalizedTime);
+            float tz = EvaluateAxisProgress(axisEasingZ, normalizedTime);
 
             float sx = Mathf.Lerp(startScale, endScale, tx);
             float sy = Mathf.Lerp(startScale, endScale, ty);
             float sz = Mathf.Lerp(startScale, endScale, tz);
 
             return new Vector3(sx, sy, sz);
+        }
+
+        private float EvaluateAxisProgress(AnimationCurve axisCurve, float normalizedTime)
+        {
+            var curve = axisCurve ?? easingCurve;
+            float value = curve.Evaluate(normalizedTime);
+            if (clampBetween0And1)
+                value = Mathf.Clamp01(value);
+            return value;
+        }
+
+        private float GetNormalizedTime(int charIndex)
+        {
+            if (!started)
+                return 0f;
+
+            float time = GetTimeForChar(charIndex);
+            float duration = Mathf.Max(0.00001f, durationPerChar);
+            float rawT = time / duration;
+
+            if (animationType == AnimationType.OneTime || animationType == AnimationType.LoopFixedDuration)
+                rawT = Mathf.Clamp01(rawT);
+
+            return rawT;
+        }
+
+        private void ConfigureAxisWrap(AnimationCurve curve)
+        {
+            if (curve == null)
+                return;
+
+            switch (animationType)
+            {
+                case AnimationType.OneTime:
+                case AnimationType.LoopFixedDuration:
+                    curve.preWrapMode = WrapMode.Clamp;
+                    curve.postWrapMode = WrapMode.Clamp;
+                    break;
+                case AnimationType.Loop:
+                    curve.preWrapMode = noDelayForChars ? WrapMode.Loop : WrapMode.Clamp;
+                    curve.postWrapMode = WrapMode.Loop;
+                    break;
+                case AnimationType.PingPong:
+                    curve.preWrapMode = noDelayForChars ? WrapMode.PingPong : WrapMode.Clamp;
+                    curve.postWrapMode = WrapMode.PingPong;
+                    break;
+            }
         }
     }
 }
