@@ -41,8 +41,6 @@ namespace EasyTextEffects
         private List<GlobalTextEffectEntry> onStartEffects_;
         private List<GlobalTextEffectEntry> manualEffects_;
         private List<TextEffectInstance> entryEffectsCopied_;
-        private bool textChangeListenerActive_;
-        private TMP_Text subscribedText_;
         private bool isRefreshing_;
 
         public void UpdateStyleInfos()
@@ -289,7 +287,6 @@ namespace EasyTextEffects
             isRefreshing_ = true;
             try
             {
-                SubscribeToTextChanged();
                 ListenForEffectChanges();
                 
                 if (text == null)
@@ -320,7 +317,6 @@ namespace EasyTextEffects
 #if UNITY_EDITOR
             EditorApplication.update += Update;
 #endif
-            SubscribeToTextChanged();
             Refresh();
         }
 
@@ -329,7 +325,6 @@ namespace EasyTextEffects
 #if UNITY_EDITOR
             EditorApplication.update -= Update;
 #endif
-            UnsubscribeFromTextChanged();
             StopListeningForEffectChanges();
         }
 
@@ -580,37 +575,5 @@ namespace EasyTextEffects
             }
         }
 #endif
-
-        private void SubscribeToTextChanged()
-        {
-            if (text == null)
-            {
-                UnsubscribeFromTextChanged();
-                return;
-            }
-
-            if (textChangeListenerActive_ && subscribedText_ == text)
-                return;
-
-            UnsubscribeFromTextChanged();
-            TMP_Text.onTextChanged += HandleTextChanged;
-            subscribedText_ = text;
-            textChangeListenerActive_ = true;
-        }
-
-        private void UnsubscribeFromTextChanged()
-        {
-            if (!textChangeListenerActive_)
-                return;
-            TMP_Text.onTextChanged -= HandleTextChanged;
-            textChangeListenerActive_ = false;
-            subscribedText_ = null;
-        }
-
-        private void HandleTextChanged(Object obj)
-        {
-            if (obj == text)
-                Refresh();
-        }
     }
 }
