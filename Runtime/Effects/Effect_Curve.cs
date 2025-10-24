@@ -90,6 +90,7 @@ namespace EasyTextEffects.Effects
         private void OnEnable()
         {
             cacheValid = false;
+            HandleValueChanged();
         }
 
 #if UNITY_EDITOR
