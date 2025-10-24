@@ -19,26 +19,9 @@ namespace EasyTextEffects.Effects
         [Tooltip("Rotate glyph quads to follow the curve tangent.")]
         public bool applyRotation = true;
 
-        private Vector3[][] cachedSourceVertices;
-        private float minX;
-        private float maxX;
-        private bool cacheValid;
-
-        public override void StartEffect(TextEffectEntry entry)
-        {
-            base.StartEffect(entry);
-            cacheValid = false;
-        }
-
-        public override void StopEffect()
-        {
-            base.StopEffect();
-            cacheValid = false;
-        }
-
         public override void ApplyEffect(TMP_TextInfo textInfo, int charIndex, int startVertex = 0, int endVertex = 3)
         {
-            if (!CheckCanApplyEffect(charIndex))
+            if (charIndex < startCharIndex || charIndex >= startCharIndex + charLength)
                 return;
 
             CacheSource(textInfo);
@@ -98,6 +81,24 @@ namespace EasyTextEffects.Effects
                 destination[vertexIndex + k] = transformed;
             }
         }
+
+        private Vector3[][] cachedSourceVertices;
+        private float minX;
+        private float maxX;
+        private bool cacheValid;
+
+        private void OnEnable()
+        {
+            cacheValid = false;
+        }
+
+#if UNITY_EDITOR
+        private void OnValidate()
+        {
+            cacheValid = false;
+            HandleValueChanged();
+        }
+#endif
 
         private void CacheSource(TMP_TextInfo textInfo)
         {
