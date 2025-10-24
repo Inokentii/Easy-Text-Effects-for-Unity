@@ -34,8 +34,10 @@ namespace EasyTextEffects
         private readonly HashSet<TextEffectInstance> monitoredEffects = new ();
         
         private List<TextEffectEntry> allTagEffects_;
+        private List<TextEffectEntry> onAwakeTagEffects_;
         private List<TextEffectEntry> onStartTagEffects_;
         private List<TextEffectEntry> manualTagEffects_;
+        private List<GlobalTextEffectEntry> onAwakeEffects_;
         private List<GlobalTextEffectEntry> onStartEffects_;
         private List<GlobalTextEffectEntry> manualEffects_;
         private List<TextEffectInstance> entryEffectsCopied_;
@@ -52,11 +54,13 @@ namespace EasyTextEffects
             CopyGlobalEffects(textInfo);
             AddTagEffects(styles, linkCount);
 
+            ApplyOnAwakeEffects(textInfo);
             StartOnStartEffects();
         }
 
         private void CopyGlobalEffects(TMP_TextInfo textInfo)
         {
+            onAwakeEffects_ = new List<GlobalTextEffectEntry>();
             onStartEffects_ = new List<GlobalTextEffectEntry>();
             manualEffects_ = new List<GlobalTextEffectEntry>();
 
@@ -73,17 +77,27 @@ namespace EasyTextEffects
                 effectEntry.effect = _entry.effect.Instantiate();
                 effectEntry.effect.startCharIndex = 0;
                 effectEntry.effect.charLength = textInfo.characterCount;
+                effectEntry.triggerWhen = _entry.triggerWhen;
                 effectEntry.overrideTagEffects = _entry.overrideTagEffects;
                 effectEntry.onEffectCompleted = _entry.onEffectCompleted;
-                if (_entry.triggerWhen == OnStart)
-                    onStartEffects_.Add(effectEntry);
-                else
-                    manualEffects_.Add(effectEntry);
+                switch (_entry.triggerWhen)
+                {
+                    case OnStart:
+                        onStartEffects_.Add(effectEntry);
+                        break;
+                    case Manual:
+                        manualEffects_.Add(effectEntry);
+                        break;
+                    case OnAwake:
+                        onAwakeEffects_.Add(effectEntry);
+                        break;
+                }
             });
         }
 
         private void AddTagEffects(TMP_LinkInfo[] styles, int linkCount)
         {
+            onAwakeTagEffects_ = new List<TextEffectEntry>();
             onStartTagEffects_ = new List<TextEffectEntry>();
             manualTagEffects_ = new List<TextEffectEntry>();
 
@@ -113,10 +127,103 @@ namespace EasyTextEffects
                     TextEffectEntry entryCopy = entry.GetCopy(
                         style.linkTextfirstCharacterIndex,
                         style.linkTextLength);
-                    if (entry.triggerWhen == OnStart)
-                        onStartTagEffects_.Add(entryCopy);
-                    else
-                        manualTagEffects_.Add(entryCopy);
+                    switch (entry.triggerWhen)
+                    {
+                        case OnStart:
+                            onStartTagEffects_.Add(entryCopy);
+                            break;
+                        case Manual:
+                            manualTagEffects_.Add(entryCopy);
+                            break;
+                        case OnAwake:
+                            onAwakeTagEffects_.Add(entryCopy);
+                            break;
+                    }
+                }
+            }
+        }
+
+        private void ApplyOnAwakeEffects(TMP_TextInfo textInfo)
+        {
+            bool hasAwakeTagEffects = onAwakeTagEffects_ != null && onAwakeTagEffects_.Count > 0;
+            bool hasAwakeGlobalEffects = onAwakeEffects_ != null && onAwakeEffects_.Count > 0;
+            if (!hasAwakeTagEffects && !hasAwakeGlobalEffects)
+                return;
+
+            if (hasAwakeGlobalEffects)
+            {
+                foreach (var entry in onAwakeEffects_)
+                {
+                    entry.StartEffect();
+                }
+            }
+
+            if (hasAwakeTagEffects)
+            {
+                foreach (var entry in onAwakeTagEffects_)
+                {
+                    entry.StartEffect();
+                }
+            }
+
+            for (var i = 0; i < textInfo.characterCount; i++)
+            {
+                TMP_CharacterInfo charInfo = textInfo.characterInfo[i];
+                if (!charInfo.isVisible)
+                    continue;
+
+                if (hasAwakeGlobalEffects)
+                {
+                    foreach (var entry in onAwakeEffects_)
+                    {
+                        if (!entry.overrideTagEffects)
+                            entry.effect.ApplyEffect(textInfo, i, 0, 3);
+                    }
+                }
+
+                if (hasAwakeTagEffects)
+                {
+                    foreach (var entry in onAwakeTagEffects_)
+                    {
+                        entry.effect.ApplyEffect(textInfo, i, 0, 3);
+                    }
+                }
+
+                if (hasAwakeGlobalEffects)
+                {
+                    foreach (var entry in onAwakeEffects_)
+                    {
+                        if (entry.overrideTagEffects)
+                            entry.effect.ApplyEffect(textInfo, i, 0, 3);
+                    }
+                }
+            }
+
+            for (var i = 0; i < textInfo.meshInfo.Length; i++)
+            {
+                TMP_MeshInfo meshInfo = textInfo.meshInfo[i];
+
+                meshInfo.mesh.colors32 = meshInfo.colors32;
+                meshInfo.mesh.vertices = meshInfo.vertices;
+
+                text.UpdateGeometry(meshInfo.mesh, i);
+            }
+
+            if (hasAwakeGlobalEffects)
+            {
+                foreach (var entry in onAwakeEffects_)
+                {
+                    entry.effect.StopEffect();
+                    entry.InvokeCompleted();
+                }
+            }
+
+            if (hasAwakeTagEffects)
+            {
+                foreach (var entry in onAwakeTagEffects_)
+                {
+                    entry.effect.StopEffect();
+                    entry.InvokeCompleted();
                 }
             }
         }
@@ -262,8 +369,10 @@ namespace EasyTextEffects
 
         public void StopAllEffects()
         {
+            onAwakeEffects_.ForEach(_entry => _entry.effect.StopEffect());
             onStartEffects_.ForEach(_entry => _entry.effect.StopEffect());
             manualEffects_.ForEach(_entry => _entry.effect.StopEffect());
+            onAwakeTagEffects_.ForEach(_entry => _entry.effect.StopEffect());
             onStartTagEffects_.ForEach(_entry => _entry.effect.StopEffect());
             manualTagEffects_.ForEach(_entry => _entry.effect.StopEffect());
         }
@@ -335,13 +444,37 @@ namespace EasyTextEffects
         public List<TextEffectStatus> QueryEffectStatuses(TextEffectType _effectType,
             TextEffectEntry.TriggerWhen _triggerWhen)
         {
-            IReadOnlyList<TextEffectEntry> effectsList = _effectType == TextEffectType.Global
-                ? _triggerWhen == OnStart
-                    ? onStartEffects_
-                    : manualEffects_
-                : _triggerWhen == OnStart
-                    ? onStartTagEffects_
-                    : manualTagEffects_;
+            IReadOnlyList<TextEffectEntry> effectsList = null;
+            if (_effectType == TextEffectType.Global)
+            {
+                switch (_triggerWhen)
+                {
+                    case OnStart:
+                        effectsList = onStartEffects_;
+                        break;
+                    case Manual:
+                        effectsList = manualEffects_;
+                        break;
+                    case OnAwake:
+                        effectsList = onAwakeEffects_;
+                        break;
+                }
+            }
+            else
+            {
+                switch (_triggerWhen)
+                {
+                    case OnStart:
+                        effectsList = onStartTagEffects_;
+                        break;
+                    case Manual:
+                        effectsList = manualTagEffects_;
+                        break;
+                    case OnAwake:
+                        effectsList = onAwakeTagEffects_;
+                        break;
+                }
+            }
             if (effectsList == null)
                 return new List<TextEffectStatus>();
             return effectsList.Select(_entry => new TextEffectStatus
@@ -355,13 +488,37 @@ namespace EasyTextEffects
         public List<TextEffectStatus> QueryEffectStatusesByTag(TextEffectType _effectType,
             TextEffectEntry.TriggerWhen _triggerWhen, string _tag)
         {
-            IReadOnlyList<TextEffectEntry> effectsList = _effectType == TextEffectType.Global
-                ? _triggerWhen == OnStart
-                    ? onStartEffects_
-                    : manualEffects_
-                : _triggerWhen == OnStart
-                    ? onStartTagEffects_
-                    : manualTagEffects_;
+            IReadOnlyList<TextEffectEntry> effectsList = null;
+            if (_effectType == TextEffectType.Global)
+            {
+                switch (_triggerWhen)
+                {
+                    case OnStart:
+                        effectsList = onStartEffects_;
+                        break;
+                    case Manual:
+                        effectsList = manualEffects_;
+                        break;
+                    case OnAwake:
+                        effectsList = onAwakeEffects_;
+                        break;
+                }
+            }
+            else
+            {
+                switch (_triggerWhen)
+                {
+                    case OnStart:
+                        effectsList = onStartTagEffects_;
+                        break;
+                    case Manual:
+                        effectsList = manualTagEffects_;
+                        break;
+                    case OnAwake:
+                        effectsList = onAwakeTagEffects_;
+                        break;
+                }
+            }
             if (effectsList == null)
                 return new List<TextEffectStatus>();
             return effectsList

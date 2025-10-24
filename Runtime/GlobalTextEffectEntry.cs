@@ -12,6 +12,7 @@ namespace EasyTextEffects
         {
             OnStart,
             Manual,
+            OnAwake,
         }
 
         public TriggerWhen triggerWhen;

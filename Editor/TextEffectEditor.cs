@@ -16,8 +16,10 @@ namespace EasyTextEffects.Editor
         private bool debugButtonsVisible_;
 
         private bool effectStatusesVisible_;
+        private bool tagAwakeEffectStatusesVisible_ = true;
         private bool tagStartEffectStatusesVisible_ = true;
         private bool tagManualEffectStatusesVisible_ = true;
+        private bool globalAwakeEffectStatusesVisible_ = true;
         private bool globalStartEffectStatusesVisible_ = true;
         private bool globalManualEffectStatusesVisible_ = true;
 
@@ -123,6 +125,17 @@ namespace EasyTextEffects.Editor
                     fontStyle = FontStyle.Bold
                 };
                 EditorGUI.indentLevel++; // Increase indent level
+                tagAwakeEffectStatusesVisible_ =
+                    EditorGUILayout.Foldout(tagAwakeEffectStatusesVisible_, "Tag OnAwake Effects", true,
+                        foldoutHeaderStyle);
+                if (tagAwakeEffectStatusesVisible_)
+                {
+                    var statuses =
+                        myScript.QueryEffectStatuses(TextEffectType.Tag, TextEffectEntry.TriggerWhen.OnAwake);
+                    DrawStatuses(statuses);
+                }
+                EditorGUILayout.Space(2);
+
                 tagStartEffectStatusesVisible_ =
                     EditorGUILayout.Foldout(tagStartEffectStatusesVisible_, "Tag OnStart Effects", true,
                         foldoutHeaderStyle);
@@ -140,6 +153,17 @@ namespace EasyTextEffects.Editor
                 if (tagManualEffectStatusesVisible_)
                 {
                     var statuses = myScript.QueryEffectStatuses(TextEffectType.Tag, TextEffectEntry.TriggerWhen.Manual);
+                    DrawStatuses(statuses);
+                }
+                EditorGUILayout.Space(2);
+
+                globalAwakeEffectStatusesVisible_ =
+                    EditorGUILayout.Foldout(globalAwakeEffectStatusesVisible_, "Global OnAwake Effects", true,
+                        foldoutHeaderStyle);
+                if (globalAwakeEffectStatusesVisible_)
+                {
+                    var statuses =
+                        myScript.QueryEffectStatuses(TextEffectType.Global, TextEffectEntry.TriggerWhen.OnAwake);
                     DrawStatuses(statuses);
                 }
                 EditorGUILayout.Space(2);
