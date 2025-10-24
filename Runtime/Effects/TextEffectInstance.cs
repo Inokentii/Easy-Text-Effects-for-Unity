@@ -147,7 +147,7 @@ namespace EasyTextEffects.Effects
             return _start * (1 - t) + _end * t;
         }
 
-        private float GetTimeForChar(int _charIndex)
+        protected float GetTimeForChar(int _charIndex)
         {
             var time = TimeUtil.GetTime(timeType);
 
@@ -182,6 +182,13 @@ namespace EasyTextEffects.Effects
                 charOrder = charLength - charOrder - 1;
             var charStartTime = startTime + timeBetweenChars * charOrder;
             return time - charStartTime;
+        }
+
+        protected float GetProgress01(int _charIndex)
+        {
+            var duration = Mathf.Max(0.00001f, durationPerChar);
+            var progress = GetTimeForChar(_charIndex) / duration;
+            return Mathf.Clamp01(progress);
         }
 
         public virtual bool IsComplete => isComplete;
