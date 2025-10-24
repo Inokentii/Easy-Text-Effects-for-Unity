@@ -27,6 +27,9 @@ namespace EasyTextEffects.Effects
         public override void StartEffect(TextEffectEntry entry)
         {
             base.StartEffect(entry);
+            if (!useAxisEasing)
+                return;
+
             ConfigureAxisWrap(axisEasingX);
             ConfigureAxisWrap(axisEasingY);
             ConfigureAxisWrap(axisEasingZ);
@@ -61,9 +64,9 @@ namespace EasyTextEffects.Effects
             float ty = EvaluateAxisProgress(axisEasingY, normalizedTime);
             float tz = EvaluateAxisProgress(axisEasingZ, normalizedTime);
 
-            float sx = Mathf.Lerp(startScale, endScale, tx);
-            float sy = Mathf.Lerp(startScale, endScale, ty);
-            float sz = Mathf.Lerp(startScale, endScale, tz);
+            float sx = Mathf.LerpUnclamped(startScale, endScale, tx);
+            float sy = Mathf.LerpUnclamped(startScale, endScale, ty);
+            float sz = Mathf.LerpUnclamped(startScale, endScale, tz);
 
             return new Vector3(sx, sy, sz);
         }
@@ -86,15 +89,26 @@ namespace EasyTextEffects.Effects
             float duration = Mathf.Max(0.00001f, durationPerChar);
             float rawT = time / duration;
 
-            if (animationType == AnimationType.OneTime || animationType == AnimationType.LoopFixedDuration)
-                rawT = Mathf.Clamp01(rawT);
+            switch (animationType)
+            {
+                case AnimationType.OneTime:
+                case AnimationType.LoopFixedDuration:
+                    rawT = Mathf.Clamp01(rawT);
+                    break;
+                case AnimationType.Loop:
+                    rawT = Mathf.Repeat(rawT, 1f);
+                    break;
+                case AnimationType.PingPong:
+                    rawT = Mathf.PingPong(rawT, 1f);
+                    break;
+            }
 
             return rawT;
         }
 
         private void ConfigureAxisWrap(AnimationCurve curve)
         {
-            if (curve == null)
+            if (!useAxisEasing || curve == null)
                 return;
 
             switch (animationType)
