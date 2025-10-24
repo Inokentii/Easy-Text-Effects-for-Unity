@@ -1,3 +1,4 @@
+using EasyTextEffects;
 using TMPro;
 using UnityEngine;
 
@@ -18,6 +19,13 @@ namespace EasyTextEffects.Effects
 
         [Tooltip("Rotate glyph quads to follow the curve tangent.")]
         public bool applyRotation = true;
+
+        public override void StartEffect(TextEffectEntry entry)
+        {
+            if (entry != null)
+                entry.triggerWhen = TextEffectEntry.TriggerWhen.OnAwake;
+            base.StartEffect(entry);
+        }
 
         public override void ApplyEffect(TMP_TextInfo textInfo, int charIndex, int startVertex = 0, int endVertex = 3)
         {
@@ -91,6 +99,11 @@ namespace EasyTextEffects.Effects
         {
             cacheValid = false;
             HandleValueChanged();
+        }
+
+        private void OnDisable()
+        {
+            cacheValid = false;
         }
 
 #if UNITY_EDITOR

@@ -29,6 +29,11 @@ namespace EasyTextEffects
             entryCopy.effect.charLength = charLength;
             entryCopy.triggerWhen = triggerWhen;
             entryCopy.onEffectCompleted = onEffectCompleted;
+
+            if (entryCopy.effect is EasyTextEffects.Effects.Effect_Curve)
+            {
+                entryCopy.triggerWhen = TriggerWhen.OnAwake;
+            }
             
             return entryCopy;
         }

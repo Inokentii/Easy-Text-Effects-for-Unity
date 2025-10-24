@@ -55,7 +55,10 @@ namespace EasyTextEffects
             CopyGlobalEffects(textInfo);
             AddTagEffects(styles, linkCount);
 
-            ApplyOnAwakeEffects(textInfo);
+            StartAwakeEffects();
+            var awakeApplied = ApplyAwakeEffects(textInfo);
+            if (awakeApplied)
+                UpdateTextGeometry(textInfo);
             StartOnStartEffects();
         }
 
@@ -79,9 +82,13 @@ namespace EasyTextEffects
                 effectEntry.effect.startCharIndex = 0;
                 effectEntry.effect.charLength = textInfo.characterCount;
                 effectEntry.triggerWhen = _entry.triggerWhen;
+                if (_entry.effect is Effect_Curve || effectEntry.effect is Effect_Curve)
+                {
+                    _entry.triggerWhen = effectEntry.triggerWhen = OnAwake;
+                }
                 effectEntry.overrideTagEffects = _entry.overrideTagEffects;
                 effectEntry.onEffectCompleted = _entry.onEffectCompleted;
-                switch (_entry.triggerWhen)
+                switch (effectEntry.triggerWhen)
                 {
                     case OnStart:
                         onStartEffects_.Add(effectEntry);
@@ -125,15 +132,18 @@ namespace EasyTextEffects
                     if (entry.effect == null)
                         continue;
                     // note: make sure onEffectCompleted events get copied 
-                    TextEffectEntry entryCopy = entry.GetCopy(
-                        style.linkTextfirstCharacterIndex,
-                        style.linkTextLength);
-                    switch (entry.triggerWhen)
-                    {
-                        case OnStart:
-                            onStartTagEffects_.Add(entryCopy);
-                            break;
-                        case Manual:
+                TextEffectEntry entryCopy = entry.GetCopy(
+                    style.linkTextfirstCharacterIndex,
+                    style.linkTextLength);
+                if (entry.effect is Effect_Curve)
+                    entry.triggerWhen = OnAwake;
+
+                switch (entryCopy.triggerWhen)
+                {
+                    case OnStart:
+                        onStartTagEffects_.Add(entryCopy);
+                        break;
+                    case Manual:
                             manualTagEffects_.Add(entryCopy);
                             break;
                         case OnAwake:
@@ -144,28 +154,27 @@ namespace EasyTextEffects
             }
         }
 
-        private void ApplyOnAwakeEffects(TMP_TextInfo textInfo)
+        private void StartAwakeEffects()
+        {
+            if (onAwakeEffects_ != null)
+            {
+                foreach (var entry in onAwakeEffects_)
+                    entry.StartEffect();
+            }
+
+            if (onAwakeTagEffects_ != null)
+            {
+                foreach (var entry in onAwakeTagEffects_)
+                    entry.StartEffect();
+            }
+        }
+
+        private bool ApplyAwakeEffects(TMP_TextInfo textInfo)
         {
             bool hasAwakeTagEffects = onAwakeTagEffects_ != null && onAwakeTagEffects_.Count > 0;
             bool hasAwakeGlobalEffects = onAwakeEffects_ != null && onAwakeEffects_.Count > 0;
             if (!hasAwakeTagEffects && !hasAwakeGlobalEffects)
-                return;
-
-            if (hasAwakeGlobalEffects)
-            {
-                foreach (var entry in onAwakeEffects_)
-                {
-                    entry.StartEffect();
-                }
-            }
-
-            if (hasAwakeTagEffects)
-            {
-                foreach (var entry in onAwakeTagEffects_)
-                {
-                    entry.StartEffect();
-                }
-            }
+                return false;
 
             for (var i = 0; i < textInfo.characterCount; i++)
             {
@@ -200,33 +209,7 @@ namespace EasyTextEffects
                 }
             }
 
-            for (var i = 0; i < textInfo.meshInfo.Length; i++)
-            {
-                TMP_MeshInfo meshInfo = textInfo.meshInfo[i];
-
-                meshInfo.mesh.colors32 = meshInfo.colors32;
-                meshInfo.mesh.vertices = meshInfo.vertices;
-
-                text.UpdateGeometry(meshInfo.mesh, i);
-            }
-
-            if (hasAwakeGlobalEffects)
-            {
-                foreach (var entry in onAwakeEffects_)
-                {
-                    entry.effect.StopEffect();
-                    entry.InvokeCompleted();
-                }
-            }
-
-            if (hasAwakeTagEffects)
-            {
-                foreach (var entry in onAwakeTagEffects_)
-                {
-                    entry.effect.StopEffect();
-                    entry.InvokeCompleted();
-                }
-            }
+            return true;
         }
 
         private List<TextEffectEntry> GetTagEffectsByName(string _effectName)
@@ -344,6 +327,8 @@ namespace EasyTextEffects
             text.ForceMeshUpdate();
             TMP_TextInfo textInfo = text.textInfo;
 
+            ApplyAwakeEffects(textInfo);
+
             for (var i = 0; i < textInfo.characterCount; i++)
             {
                 TMP_CharacterInfo charInfo = textInfo.characterInfo[i];
@@ -365,15 +350,25 @@ namespace EasyTextEffects
                     _entry.effect.ApplyEffect(textInfo, capturedI, 0, 3));
             }
 
-            // apply changes and update mesh
+            UpdateTextGeometry(textInfo);
+        }
+
+        private void UpdateTextGeometry(TMP_TextInfo textInfo)
+        {
+            if (textInfo == null || textInfo.meshInfo == null || text == null)
+                return;
+
             for (var i = 0; i < textInfo.meshInfo.Length; i++)
             {
                 TMP_MeshInfo meshInfo = textInfo.meshInfo[i];
+                var mesh = meshInfo.mesh;
+                if (mesh == null)
+                    continue;
 
-                meshInfo.mesh.colors32 = meshInfo.colors32;
-                meshInfo.mesh.vertices = meshInfo.vertices;
+                mesh.colors32 = meshInfo.colors32;
+                mesh.vertices = meshInfo.vertices;
 
-                text.UpdateGeometry(meshInfo.mesh, i);
+                text.UpdateGeometry(mesh, i);
             }
         }
 
